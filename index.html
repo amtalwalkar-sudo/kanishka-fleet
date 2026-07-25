@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kanishka Fleet Manager</title>
+  <style>
+    :root {
+      --bg: #0b1329;
+      --card-bg: rgba(23, 32, 54, 0.8);
+      --accent: #00f2fe;
+      --accent-grad: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+      --danger-grad: linear-gradient(135deg, #ff0844 0%, #ffb199 100%);
+      --success-grad: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+      --text: #f1f5f9;
+      --muted: #64748b;
+      --border: #1e293b;
+    }
+
+    * { box-sizing: border-box; touch-action: manipulation; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); margin: 0; padding: 12px; padding-bottom: 80px; }
+
+    h2 { font-size: 1.3rem; margin: 0 0 12px 0; background: var(--accent-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 800; }
+
+    /* Navigation Bar */
+    .nav-bar { display: flex; background: #111827; padding: 4px; border-radius: 14px; border: 1px solid var(--border); margin-bottom: 14px; gap: 4px; }
+    .nav-btn { flex: 1; padding: 10px 2px; border: none; background: transparent; color: var(--muted); font-size: 0.72rem; font-weight: 700; border-radius: 10px; transition: all 0.2s; }
+    .nav-btn.active { background: var(--accent-grad); color: #000; box-shadow: 0 4px 12px rgba(0, 242, 254, 0.3); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Glass Cards */
+    .card { background: var(--card-bg); backdrop-filter: blur(10px); padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.05); margin-bottom: 14px; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37); }
+    .card-title { font-size: 0.85rem; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    label { display: block; font-size: 0.78rem; font-weight: 600; color: #a0aec0; margin-top: 10px; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 12px; border-radius: 10px; border: 1px solid #2d3748; background: #0f172a; color: #fff; font-size: 0.95rem; outline: none; }
+    input:focus, select:focus { border-color: #38bdf8; }
+
+    /* Interactive Swipe Button */
+    .swipe-track { position: relative; width: 100%; height: 56px; background: #1e293b; border-radius: 28px; overflow: hidden; border: 1px solid #334155; margin-top: 10px; }
+    .swipe-thumb { position: absolute; top: 3px; left: 3px; width: 50px; height: 50px; background: var(--accent-grad); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.5); z-index: 2; transition: left 0.1s ease-out; }
+    .swipe-text { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 700; color: #94a3b8; pointer-events: none; z-index: 1; }
+
+    .btn { width: 100%; padding: 12px; border-radius: 10px; border: none; background: var(--accent-grad); color: #000; font-weight: 800; font-size: 0.95rem; margin-top: 12px; cursor: pointer; }
+    .btn-danger { background: var(--danger-grad); color: #fff; }
+
+    /* Grid Stats */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .stat-box { background: #0f172a; padding: 12px; border-radius: 12px; border: 1px solid #1e293b; text-align: center; }
+    .stat-val { font-size: 1.1rem; font-weight: 800; color: #38bdf8; margin-top: 2px; }
+    .stat-lbl { font-size: 0.7rem; color: #64748b; text-transform: uppercase; }
+
+    .log-item { background: #0f172a; padding: 12px; border-radius: 10px; margin-top: 8px; border-left: 4px solid #00f2fe; font-size: 0.85rem; line-height: 1.5; }
+    .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.7rem; font-weight: 700; margin-right: 4px; }
+    .tag-biz { background: rgba(56, 189, 248, 0.2); color: #38bdf8; }
+    .tag-pers { background: rgba(248, 113, 113, 0.2); color: #f87171; }
+  </style>
+</head>
+<body>
+
+  <h2>Kanishka Fleet Manager</h2>
+
+  <div class="nav-bar">
+    <button class="nav-btn active" onclick="switchTab('dashboard', this)">Dashboard</button>
+    <button class="nav-btn" onclick="switchTab('fuel', this)">Fuel Log</button>
+    <button class="nav-btn" onclick="switchTab('fixed', this)">Loans & Fixed</button>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <div id="dashboard" class="tab-content active">
+    <div class="card">
+      <div class="card-title">
+        <span>Shift Status</span>
+        <span id="shiftBadge" class="tag tag-biz" style="background:#334155; color:#94a3b8;">OFF DUTY</span>
+      </div>
+
+      <div id="shiftInputs">
+        <label>Start Odometer (KM)</label>
+        <input type="number" id="startKm" placeholder="e.g. 15000">
+      </div>
+
+      <!-- Interactive Swipe Control -->
+      <div class="swipe-track" id="swipeTrack">
+        <div class="swipe-text" id="swipeText">SWIPE RIGHT TO START WORK ▶</div>
+        <div class="swipe-thumb" id="swipeThumb">⚡</div>
+      </div>
+    </div>
+
+    <!-- Live Break-Even & Financials -->
+    <div class="card">
+      <div class="card-title">Live Break-Even Dashboard</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Daily Target</div>
+          <div class="stat-val" id="dashDailyTarget" style="color:#facc15;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Break-Even Status</div>
+          <div class="stat-val" id="dashBeStatus" style="font-size:0.85rem;">₹0 Left</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Shift Revenue</div>
+          <div class="stat-val" id="dashTotalRev" style="color:#4ade80;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Net Profit</div>
+          <div class="stat-val" id="dashNetProfit">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Shift History</div>
+      <div id="shiftLogs">No shifts logged yet.</div>
+    </div>
+  </div>
+
+  <!-- FUEL LOG TAB -->
+  <div id="fuel" class="tab-content">
+    <div class="card">
+      <div class="card-title">Log Fuel Fill-Up</div>
+      <label>Trip Category</label>
+      <select id="fuelCat">
+        <option value="Business">Business Trip</option>
+        <option value="Personal">Personal Trip</option>
+      </select>
+
+      <label>Fuel Total Amount (₹)</label>
+      <input type="number" id="fuelAmt" placeholder="e.g. 1000">
+
+      <label>Fuel Quantity (Kg / Liters)</label>
+      <input type="number" id="fuelQty" placeholder="e.g. 11.5">
+
+      <label>Odometer Reading (KM)</label>
+      <input type="number" id="fuelOdo" placeholder="e.g. 15200">
+
+      <button class="btn" onclick="addFuelLog()">Save Fuel Log</button>
+    </div>
+
+    <!-- Fuel Calculations Summary -->
+    <div class="card">
+      <div class="card-title">Fuel Analysis</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Business Fuel</div>
+          <div class="stat-val" id="bizFuelSpent">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Personal Fuel</div>
+          <div class="stat-val" id="persFuelSpent" style="color:#f87171;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Total Volume</div>
+          <div class="stat-val" id="totFuelQty">0 units</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Avg Rate/Unit</div>
+          <div class="stat-val" id="avgFuelRate">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fuel History</div>
+      <div id="fuelLogs">No fuel records.</div>
+    </div>
+  </div>
+
+  <!-- LOANS & FIXED COSTS TAB -->
+  <div id="fixed" class="tab-content">
+    <div class="card">
+      <div class="card-title">Monthly Loans & Overhead</div>
+      <label>Monthly Vehicle EMI (₹)</label>
+      <input type="number" id="loanEmi" placeholder="e.g. 12000" oninput="saveLoans()">
+
+      <label>Monthly Insurance (₹)</label>
+      <input type="number" id="loanIns" placeholder="e.g. 1500" oninput="saveLoans()">
+
+      <label>Monthly Permits & Other Fixed (₹)</label>
+      <input type="number" id="loanPermit" placeholder="e.g. 1500" oninput="saveLoans()">
+    </div>
+
+    <div class="card">
+      <div class="card-title">Break-Even Targets</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Monthly Fixed Total</div>
+          <div class="stat-val" id="fixMonthlyTotal">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Daily Break-Even Target</div>
+          <div class="stat-val" id="fixDailyTarget" style="color:#facc15;">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-danger" onclick="clearData()">Clear All App Data</button>
+    </div>
+  </div>
+
+  <script>
+    // Tab Switcher
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(e => e.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Loans & Fixed Storage
+    function saveLoans() {
+      const emi = Number(document.getElementById('loanEmi').value || 0);
+      const ins = Number(document.getElementById('loanIns').value || 0);
+      const permit = Number(document.getElementById('loanPermit').value || 0);
+
+      localStorage.setItem('k_loan_emi', emi);
+      localStorage.setItem('k_loan_ins', ins);
+      localStorage.setItem('k_loan_permit', permit);
+      renderAll();
+    }
+
+    // Swipe Slider Implementation
+    let isWorking = false;
+    const thumb = document.getElementById('swipeThumb');
+    const track = document.getElementById('swipeTrack');
+    const text = document.getElementById('swipeText');
+    let startX = 0, currentX = 0, isDragging = false;
+
+    thumb.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      startX = e.touches[0].clientX - thumb.offsetLeft;
+    });
+
+    thumb.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      let max = track.offsetWidth - thumb.offsetWidth - 6;
+      currentX = e.touches[0].clientX - startX;
+      if (currentX < 3) currentX = 3;
+      if (currentX > max) currentX = max;
+      thumb.style.left = currentX + 'px';
+    });
+
+    thumb.addEventListener('touchend', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      let max = track.offsetWidth - thumb.offsetWidth - 6;
+      if (currentX > max * 0.75) {
+        // Swiped completed
+        thumb.style.left = max + 'px';
+        handleSwipeAction();
+      } else {
+        // Reset position
+        thumb.style.left = '3px';
+      }
+    });
+
+    function handleSwipeAction() {
+      const active = JSON.parse(localStorage.getItem('k_active_shift') || 'null');
+      if (!active) {
+        // Start Work Action
+        const km = document.getElementById('startKm').value;
+        if (!km) {
+          alert('Please enter starting odometer reading!');
+          thumb.style.left = '3px';
+          return;
+        }
+        localStorage.setItem('k_active_shift', JSON.stringify({ startKm: km, startTime: new Date().toLocaleString() }));
+      } else {
+        // End Work Action
+        const endKm = prompt('Enter Ending Odometer (KM):');
+        const rev = prompt('Enter Revenue Earned (₹):');
+        if (endKm && rev) {
+          const logs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+          logs.unshift({
+            startKm: active.startKm,
+            endKm: endKm,
+            kmRun: Number(endKm) - Number(active.startKm),
+            revenue: Number(rev),
+            time: new Date().toLocaleString()
+          });
+          localStorage.setItem('k_shift_logs', JSON.stringify(logs));
+          localStorage.removeItem('k_active_shift');
+        }
+      }
+      thumb.style.left = '3px';
+      renderAll();
+    }
+
+    // Fuel Logging
+    function addFuelLog() {
+      const cat = document.getElementById('fuelCat').value;
+      const amt = Number(document.getElementById('fuelAmt').value || 0);
+      const qty = Number(document.getElementById('fuelQty').value || 0);
+      const odo = document.getElementById('fuelOdo').value;
+
+      if (!amt || !qty) { alert('Enter fuel amount and quantity'); return; }
+
+      const logs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      logs.unshift({ cat: cat, amt: amt, qty: qty, odo: odo, time: new Date().toLocaleString() });
+      localStorage.setItem('k_fuel_logs', JSON.stringify(logs));
+
+      document.getElementById('fuelAmt').value = '';
+      document.getElementById('fuelQty').value = '';
+      document.getElementById('fuelOdo').value = '';
+      renderAll();
+    }
+
+    // Render Master Dashboard
+    function renderAll() {
+      // 1. Loans & Targets
+      const emi = Number(localStorage.getItem('k_loan_emi') || 0);
+      const ins = Number(localStorage.getItem('k_loan_ins') || 0);
+      const permit = Number(localStorage.getItem('k_loan_permit') || 0);
+
+      document.getElementById('loanEmi').value = emi || '';
+      document.getElementById('loanIns').value = ins || '';
+      document.getElementById('loanPermit').value = permit || '';
+
+      const fixedTotal = emi + ins + permit;
+      const dailyTarget = Math.round(fixedTotal / 30);
+
+      document.getElementById('fixMonthlyTotal').innerText = '₹' + fixedTotal;
+      document.getElementById('fixDailyTarget').innerText = '₹' + dailyTarget;
+      document.getElementById('dashDailyTarget').innerText = '₹' + dailyTarget;
+
+      // 2. Active Shift UI
+      const active = JSON.parse(localStorage.getItem('k_active_shift') || 'null');
+      const badge = document.getElementById('shiftBadge');
+      const shiftInputs = document.getElementById('shiftInputs');
+
+      if (active) {
+        badge.innerText = 'ON DUTY (' + active.startKm + ' KM)';
+        badge.style.background = 'rgba(74, 222, 128, 0.2)';
+        badge.style.color = '#4ade80';
+        text.innerText = 'SWIPE RIGHT TO END SHIFT ⏹';
+        shiftInputs.style.display = 'none';
+      } else {
+        badge.innerText = 'OFF DUTY';
+        badge.style.background = '#334155';
+        badge.style.color = '#94a3b8';
+        text.innerText = 'SWIPE RIGHT TO START WORK ▶';
+        shiftInputs.style.display = 'block';
+      }
+
+      // 3. Shift Summaries
+      const shiftLogs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+      let totalRev = 0;
+      shiftLogs.forEach(i => totalRev += Number(i.revenue || 0));
+      document.getElementById('dashTotalRev').innerText = '₹' + totalRev;
+
+      // 4. Fuel Summaries
+      const fuelLogs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      let bizCost = 0, persCost = 0, totalQty = 0;
+      fuelLogs.forEach(i => {
+        if (i.cat === 'Business') bizCost += Number(i.amt || 0);
+        else persCost += Number(i.amt || 0);
+        totalQty += Number(i.qty || 0);
+      });
+
+      document.getElementById('bizFuelSpent').innerText = '₹' + bizCost;
+      document.getElementById('persFuelSpent').innerText = '₹' + persCost;
+      document.getElementById('totFuelQty').innerText = totalQty.toFixed(1) + ' units';
+      const totalFuelCost = bizCost + persCost;
+      document.getElementById('avgFuelRate').innerText = totalQty > 0 ? '₹' + (totalFuelCost / totalQty).toFixed(1) + '/u' : '₹0';
+
+      // 5. Net Profit & Break-Even calculation
+      const netProfit = totalRev - bizCost - dailyTarget;
+      const netEl = document.getElementById('dashNetProfit');
+      netEl.innerText = '₹' + netProfit;
+      netEl.style.color = netProfit >= 0 ? '#4ade80' : '#f87171';
+
+      const statusEl = document.getElementById('dashBeStatus');
+      if (totalRev >= dailyTarget) {
+        statusEl.innerText = 'Target Met 🎉';
+        statusEl.style.color = '#4ade80';
+      } else {
+        statusEl.innerText = '₹' + (dailyTarget - totalRev) + ' Needed';
+        statusEl.style.color = '#f87171';
+      }
+
+      // 6. History Render
+      document.getElementById('shiftLogs').innerHTML = shiftLogs.length === 0 ? '<span style="color:#64748b">No shift records.</span>' :
+        shiftLogs.map(i => `
+          <div class="log-item">
+            Distance: <strong>${i.kmRun} KM</strong> (${i.startKm} to ${i.endKm})<br>
+            Revenue: <strong style="color:#4ade80">₹${i.revenue}</strong>
+            <br><small style="color:#64748b">${i.time}</small>
+          </div>
+        `).join('');
+
+      document.getElementById('fuelLogs').innerHTML = fuelLogs.length === 0 ? '<span style="color:#64748b">No fuel records.</span>' :
+        fuelLogs.map(i => `
+          <div class="log-item" style="border-left-color:${i.cat === 'Business' ? '#00f2fe' : '#ff0844'}">
+            <span class="tag ${i.cat === 'Business' ? 'tag-biz' : 'tag-pers'}">${i.cat}</span>
+            Amount: <strong>₹${i.amt}</strong> (${i.qty} units @ ₹${(i.amt/i.qty).toFixed(1)}/u)<br>
+            ${i.odo ? `Odometer: ${i.odo} KM<br>` : ''}
+            <small style="color:#64748b">${i.time}</small>
+          </div>
+        `).join('');
+    }
+
+    function clearData() {
+      if (confirm('Clear all stored fleet data?')) {
+        localStorage.clear();
+        renderAll();
+      }
+    }
+
+    renderAll();
+  </script>
+</body>
+        </html>
