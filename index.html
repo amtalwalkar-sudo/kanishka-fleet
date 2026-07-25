@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kanishka Fleet Manager</title>
+  <style>
+    * { box-sizing: border-box; touch-action: manipulation; }
+    body { 
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; 
+      background: #0f172a; 
+      color: #f8fafc; 
+      margin: 0; 
+      padding: 12px; 
+      padding-bottom: 70px;
+    }
+    h2 { color: #38bdf8; margin: 0 0 12px 0; font-size: 1.2rem; }
+    
+    /* Navigation Bar */
+    .nav-bar {
+      display: flex;
+      background: #1e293b;
+      border-radius: 10px;
+      padding: 4px;
+      margin-bottom: 12px;
+      border: 1px solid #334155;
+      overflow-x: auto;
+    }
+    .nav-btn {
+      flex: 1;
+      padding: 8px 4px;
+      text-align: center;
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      border-radius: 6px;
+    }
+    .nav-btn.active {
+      background: #0284c7;
+      color: #fff;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    .card { 
+      background: #1e293b; 
+      padding: 14px; 
+      border-radius: 12px; 
+      margin-bottom: 12px; 
+      border: 1px solid #334155; 
+    }
+    label { display: block; font-size: 0.8rem; margin-bottom: 4px; color: #94a3b8; font-weight: 600; margin-top: 8px; }
+    input, select { 
+      width: 100%; 
+      padding: 10px; 
+      border-radius: 8px; 
+      border: 1px solid #475569; 
+      background: #0f172a; 
+      color: #fff; 
+      font-size: 0.95rem; 
+      outline: none;
+      -webkit-appearance: none;
+    }
+    .btn { 
+      width: 100%; 
+      padding: 12px; 
+      border-radius: 8px; 
+      border: none; 
+      background: #0284c7; 
+      color: white; 
+      font-weight: bold; 
+      font-size: 0.95rem; 
+      margin-top: 12px;
+    }
+    .btn-danger { background: #ef4444; }
+
+    /* Swipe Switcher */
+    .swipe-container {
+      background: #0f172a;
+      border: 2px dashed #38bdf8;
+      border-radius: 10px;
+      padding: 16px;
+      text-align: center;
+      margin-bottom: 12px;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 8px;
+    }
+    .status-off { background: #334155; color: #94a3b8; }
+    .status-on { background: #166534; color: #4ade80; }
+
+    /* Summary Grid */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .stat-box {
+      background: #0f172a;
+      padding: 8px;
+      border-radius: 8px;
+      text-align: center;
+      border: 1px solid #334155;
+    }
+    .stat-val { font-size: 0.95rem; font-weight: bold; color: #38bdf8; }
+    .stat-lbl { font-size: 0.7rem; color: #94a3b8; }
+
+    .log-item { 
+      background: #0f172a; 
+      padding: 10px; 
+      border-radius: 8px; 
+      margin-top: 8px; 
+      border-left: 4px solid #38bdf8; 
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+
+  <h2>Kanishka Fleet Manager</h2>
+
+  <!-- Top Navigation Tabs -->
+  <div class="nav-bar">
+    <button class="nav-btn active" onclick="switchTab('dashboard')">Dashboard</button>
+    <button class="nav-btn" onclick="switchTab('work')">Work Exp</button>
+    <button class="nav-btn" onclick="switchTab('fuel')">Fuel Log</button>
+    <button class="nav-btn" onclick="switchTab('fixed')">Loans & Overhead</button>
+  </div>
+
+  <!-- TAB 1: DASHBOARD -->
+  <div id="dashboard" class="tab-content active">
+    
+    <!-- Shift Control Card -->
+    <div class="card">
+      <div class="swipe-container">
+        <span id="shiftStatus" class="status-badge status-off">OFF DUTY</span>
+        <div id="shiftActionArea">
+          <label>Odometer at Start (KM)</label>
+          <input type="number" id="startKm" placeholder="e.g. 15000">
+          <button class="btn" onclick="startWork()">▶ Start Work Shift</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Break-Even & Financial Summary -->
+    <div class="card">
+      <strong style="color: #facc15; font-size:0.9rem;">Break-Even & Totals</strong>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Daily Target</div>
+          <div class="stat-val" id="beDaily" style="color:#facc15;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Net Profit</div>
+          <div class="stat-val" id="dashNet">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Biz Fuel Spent</div>
+          <div class="stat-val" id="dashBizFuel">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Personal Fuel</div>
+          <div class="stat-val" id="dashPersFuel" style="color:#f87171;">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <strong style="color: #38bdf8; font-size:0.9rem;">Recent Activity</strong>
+      <div id="dashLogs">No activity recorded yet.</div>
+    </div>
+  </div>
+
+  <!-- TAB 2: WORK EXPENSES -->
+  <div id="work" class="tab-content">
+    <div class="card">
+      <strong style="color: #38bdf8;">Log Daily Work Expense</strong>
+      <label>Expense Type</label>
+      <select id="workExpType">
+        <option value="Maintenance / Repairs">Maintenance / Repairs</option>
+        <option value="Toll / Parking">Toll / Parking</option>
+        <option value="Driver Allowance / Food">Driver Allowance / Food</option>
+        <option value="Other">Other Operational</option>
+      </select>
+
+      <label>Amount (₹)</label>
+      <input type="number" id="workExpAmt" placeholder="e.g. 250">
+
+      <label>Notes / Vehicle No.</label>
+      <input type="text" id="workExpNotes" placeholder="e.g. Tyre puncture - MH02DN4821">
+
+      <button class="btn" onclick="addWorkExpense()">Save Work Expense</button>
+    </div>
+
+    <div class="card">
+      <strong style="color: #38bdf8;">Work Expense History</strong>
+      <div id="workExpLogs">No work expenses recorded.</div>
+    </div>
+  </div>
+
+  <!-- TAB 3: FUEL LOG (BUSINESS VS PERSONAL) -->
+  <div id="fuel" class="tab-content">
+    <div class="card">
+      <strong style="color: #38bdf8;">Add Fuel Entry</strong>
+      <label>Trip Category</label>
+      <select id="fuelCategory">
+        <option value="Business">Business Trip</option>
+        <option value="Personal">Personal Trip</option>
+      </select>
+
+      <label>Fuel Amount (₹)</label>
+      <input type="number" id="fuelCost" placeholder="e.g. 800">
+
+      <label>Fuel Quantity (Kg / Liters)</label>
+      <input type="number" id="fuelQty" placeholder="e.g. 9.5">
+
+      <label>Current Odometer (KM)</label>
+      <input type="number" id="fuelKm" placeholder="e.g. 15200">
+
+      <button class="btn" onclick="addFuelEntry()">Save Fuel Entry</button>
+    </div>
+
+    <div class="card">
+      <strong style="color: #38bdf8;">Fuel Logs & Separation</strong>
+      <div id="fuelLogs">No fuel logs recorded.</div>
+    </div>
+  </div>
+
+  <!-- TAB 4: LOANS & OVERHEAD -->
+  <div id="fixed" class="tab-content">
+    <div class="card">
+      <strong style="color: #38bdf8;">Fixed Costs Setup</strong>
+      <label>Monthly Vehicle EMI (₹)</label>
+      <input type="number" id="cfgEmi" placeholder="e.g. 12000" onchange="saveFixedConfig()">
+
+      <label>Monthly Insurance Share (₹)</label>
+      <input type="number" id="cfgIns" placeholder="e.g. 1500" onchange="saveFixedConfig()">
+
+      <label>Taxes & Permits Share (₹)</label>
+      <input type="number" id="cfgTax" placeholder="e.g. 1500" onchange="saveFixedConfig()">
+    </div>
+
+    <div class="card">
+      <strong style="color: #facc15;">Fixed Overhead Summary</strong>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Total Fixed / Mo.</div>
+          <div class="stat-val" id="fixTotal">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Daily Fixed Share</div>
+          <div class="stat-val" id="fixDaily">₹0</div>
+        </div>
+      </div>
+    </div>
+    
+    <div class="card">
+      <button class="btn btn-danger" onclick="clearAllData()">Reset All Fleet Data</button>
+    </div>
+  </div>
+
+  <script>
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+    }
+
+    function saveFixedConfig() {
+      const emi = Number(document.getElementById('cfgEmi').value || 0);
+      const ins = Number(document.getElementById('cfgIns').value || 0);
+      const tax = Number(document.getElementById('cfgTax').value || 0);
+      
+      localStorage.setItem('k_fixed_emi', emi);
+      localStorage.setItem('k_fixed_ins', ins);
+      localStorage.setItem('k_fixed_tax', tax);
+      renderAll();
+    }
+
+    function startWork() {
+      const km = document.getElementById('startKm').value;
+      if (!km) { alert('Enter starting odometer reading'); return; }
+      
+      const shift = { active: true, startKm: km, startTime: new Date().toLocaleString() };
+      localStorage.setItem('k_active_shift', JSON.stringify(shift));
+      renderAll();
+    }
+
+    function endWork() {
+      const endKm = document.getElementById('endKm').value;
+      const rev = document.getElementById('shiftRev').value;
+      
+      if (!endKm || !rev) { alert('Enter ending KM and Revenue'); return; }
+      
+      const shift = JSON.parse(localStorage.getItem('k_active_shift') || '{}');
+      const distance = Number(endKm) - Number(shift.startKm || endKm);
+
+      const logs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+      logs.unshift({
+        startKm: shift.startKm,
+        endKm: endKm,
+        distance: distance,
+        revenue: rev,
+        time: new Date().toLocaleString()
+      });
+
+      localStorage.setItem('k_shift_logs', JSON.stringify(logs));
+      localStorage.removeItem('k_active_shift');
+      renderAll();
+    }
+
+    function addWorkExpense() {
+      const type = document.getElementById('workExpType').value;
+      const amt = document.getElementById('workExpAmt').value;
+      const notes = document.getElementById('workExpNotes').value;
+
+      if (!amt) { alert('Enter expense amount'); return; }
+
+      const logs = JSON.parse(localStorage.getItem('k_work_exp') || '[]');
+      logs.unshift({ type: type, amt: amt, notes: notes, time: new Date().toLocaleString() });
+      localStorage.setItem('k_work_exp', JSON.stringify(logs));
+
+      document.getElementById('workExpAmt').value = '';
+      document.getElementById('workExpNotes').value = '';
+      renderAll();
+    }
+
+    function addFuelEntry() {
+      const cat = document.getElementById('fuelCategory').value;
+      const cost = document.getElementById('fuelCost').value;
+      const qty = document.getElementById('fuelQty').value;
+      const km = document.getElementById('fuelKm').value;
+
+      if (!cost) { alert('Enter fuel cost'); return; }
+
+      const logs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      logs.unshift({ cat: cat, cost: cost, qty: qty, km: km, time: new Date().toLocaleString() });
+      localStorage.setItem('k_fuel_logs', JSON.stringify(logs));
+
+      document.getElementById('fuelCost').value = '';
+      document.getElementById('fuelQty').value = '';
+      document.getElementById('fuelKm').value = '';
+      renderAll();
+    }
+
+    function renderAll() {
+      // 1. Fixed Overhead
+      const emi = Number(localStorage.getItem('k_fixed_emi') || 0);
+      const ins = Number(localStorage.getItem('k_fixed_ins') || 0);
+      const tax = Number(localStorage.getItem('k_fixed_tax') || 0);
+      
+      document.getElementById('cfgEmi').value = emi || '';
+      document.getElementById('cfgIns').value = ins || '';
+      document.getElementById('cfgTax').value = tax || '';
+
+      const totalFixed = emi + ins + tax;
+      const dailyFixed = Math.round(totalFixed / 30);
+      document.getElementById('fixTotal').innerText = '₹' + totalFixed;
+      document.getElementById('fixDaily').innerText = '₹' + dailyFixed;
+      document.getElementById('beDaily').innerText = '₹' + dailyFixed;
+
+      // 2. Shift Controls
+      const activeShift = JSON.parse(localStorage.getItem('k_active_shift') || 'null');
+      const statusBadge = document.getElementById('shiftStatus');
+      const actionArea = document.getElementById('shiftActionArea');
+
+      if (activeShift) {
+        statusBadge.innerText = 'ON DUTY (Started at ' + activeShift.startKm + ' KM)';
+        statusBadge.className = 'status-badge status-on';
+        actionArea.innerHTML = `
+          <label>Ending Odometer (KM)</label>
+          <input type="number" id="endKm" placeholder="e.g. 15150">
+          <label>Shift Revenue Earned (₹)</label>
+          <input type="number" id="shiftRev" placeholder="e.g. 2800">
+          <button class="btn btn-danger" onclick="endWork()">■ End Work Shift & Save</button>
+        `;
+      } else {
+        statusBadge.innerText = 'OFF DUTY';
+        statusBadge.className = 'status-badge status-off';
+        actionArea.innerHTML = `
+          <label>Odometer at Start (KM)</label>
+          <input type="number" id="startKm" placeholder="e.g. 15000">
+          <button class="btn" onclick="startWork()">▶ Start Work Shift</button>
+        `;
+      }
+
+      // 3. Totals & Fuel Aggregations
+      const shiftLogs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+      const fuelLogs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      const workExpLogs = JSON.parse(localStorage.getItem('k_work_exp') || '[]');
+
+      let totalRev = 0;
+      shiftLogs.forEach(i => totalRev += Number(i.revenue || 0));
+
+      let bizFuel = 0, persFuel = 0;
+      fuelLogs.forEach(i => {
+        if (i.cat === 'Business') bizFuel += Number(i.cost || 0);
+        else persFuel += Number(i.cost || 0);
+      });
+
+      let totalWorkExp = 0;
+      workExpLogs.forEach(i => totalWorkExp += Number(i.amt || 0));
+
+      document.getElementById('dashBizFuel').innerText = '₹' + bizFuel;
+      document.getElementById('dashPersFuel').innerText = '₹' + persFuel;
+
+      const netProfit = totalRev - (bizFuel + totalWorkExp + dailyFixed);
+      const netEl = document.getElementById('dashNet');
+      netEl.innerText = '₹' + netProfit;
+      netEl.style.color = netProfit >= 0 ? '#4ade80' : '#f87171';
+
+      // 4. Render Log Lists
+      document.getElementById('dashLogs').innerHTML = shiftLogs.length === 0 ? '<span style="color:#64748b">No shifts completed.</span>' :
+        shiftLogs.map(i => `
+          <div class="log-item">
+            Shift: <strong>${i.distance} KM</strong> run | Revenue: <span style="color:#4ade80">₹${i.revenue}</span>
+            <br><small style="color:#64748b">${i.time}</small>
+          </div>
+        `).join('');
+
+      document.getElementById('workExpLogs').innerHTML = workExpLogs.length === 0 ? '<span style="color:#64748b">No expenses logged.</span>' :
+        workExpLogs.map(i => `
+          <div class="log-item">
+            <strong>${i.type}</strong>: ₹${i.amt}
+            ${i.notes ? `<br><small style="color:#94a3b8">${i.notes}</small>` : ''}
+            <br><small style="color:#64748b">${i.time}</small>
+          </div>
+        `).join('');
+
+      document.getElementById('fuelLogs').innerHTML = fuelLogs.length === 0 ? '<span style="color:#64748b">No fuel entries.</span>' :
+        fuelLogs.map(i => `
+          <div class="log-item" style="border-left-color: ${i.cat === 'Business' ? '#38bdf8' : '#f87171'}">
+            <strong>${i.cat} Fuel</strong>: ₹${i.cost} (${i.qty || 0} units)
+            ${i.km ? `<br>Odometer: ${i.km} KM` : ''}
+            <br><small style="color:#64748b">${i.time}</small>
+          </div>
+        `).join('');
+    }
+
+    function clearAllData() {
+      if (confirm('Delete all saved logs and configurations?')) {
+        localStorage.clear();
+        renderAll();
+      }
+    }
+
+    renderAll();
+  </script>
+</body>
+  </html>
