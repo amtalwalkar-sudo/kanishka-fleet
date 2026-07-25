@@ -1,12 +1,13 @@
 {
-  "name": "Kanishka Fleet — Daily Log",
+  "name": "Kanishka Fleet",
   "short_name": "Kanishka Fleet",
-  "description": "Daily Logbook, Fuel & Expense Tracker for Taxi & Fleet Operations",
+  "description": "Daily work sessions, fuel log, expenses, loan tracking, and breakeven dashboard for MH01EM7360.",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#12151C",
-  "theme_color": "#16181A",
   "orientation": "portrait",
+  "background_color": "#12151C",
+  "theme_color": "#12151C",
   "icons": [
     {
       "src": "icon-192.png",
