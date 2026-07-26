@@ -250,6 +250,8 @@
   .cal-list-amt.neg{ color:var(--red); }
 </style>
 
+
+<link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -1335,6 +1337,12 @@ async function init(){
   setInterval(()=>{ if(document.getElementById('tab-work').classList.contains('active')) updateElapsedDisplay(); }, 15000);
 }
 init();
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+ window.addEventListener('load', ()=>navigator.serviceWorker.register('./service-worker.js').catch(console.error));
+}
 </script>
 </body>
 </html>
