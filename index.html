@@ -195,6 +195,12 @@
   .badge.soon{ background:rgba(255,84,112,0.15); color:var(--red); }
   .badge.ok{ background:rgba(62,207,142,0.15); color:var(--green); }
 
+  .renewal-banner{
+    background:rgba(255,84,112,0.1); border:1px solid rgba(255,84,112,0.3); border-radius:12px;
+    padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.5;
+  }
+  .renewal-banner .title{ font-family:var(--display); font-weight:600; color:var(--red); font-size:13px; margin-bottom:4px; }
+
   /* ---------- Swipe-to-confirm slider (Start Work / End Session) ---------- */
   .swipe-wrap{ margin-top:18px; }
   .swipe-track{
@@ -260,6 +266,10 @@
   <!-- WORK TAB -->
   <section class="tab-panel active" id="tab-work">
     <div id="work-content"></div>
+    <div class="stat-grid" style="margin-bottom:14px;">
+      <div class="stat"><div class="k">Today's km</div><div class="v neu" id="today-km">0</div></div>
+      <div class="stat"><div class="k">Today's Income</div><div class="v neu" id="today-income">₹0</div></div>
+    </div>
     <div class="divider-label">Today's Sessions</div>
     <div class="card" id="work-history"></div>
 
@@ -272,6 +282,7 @@
         <div><label>Start Odometer (km)</label><input type="number" inputmode="decimal" id="pt-start-odo"></div>
         <div><label>End Odometer (km)</label><input type="number" inputmode="decimal" id="pt-end-odo"></div>
       </div>
+      <div class="helptext" id="pt-odo-warning" style="min-height:14px;"></div>
       <label>Note (optional)</label>
       <input type="text" id="pt-note" placeholder="e.g. family visit">
       <button class="btn btn-ghost" onclick="savePersonalTrip()">Log Personal Trip</button>
@@ -290,6 +301,7 @@
       <input type="time" id="fuel-time">
       <label>Odometer (km)</label>
       <input type="number" inputmode="decimal" id="fuel-odo" placeholder="e.g. 12840">
+      <div class="helptext" id="fuel-odo-warning" style="min-height:14px;"></div>
       <div class="row">
         <div>
           <label>Price / kg (₹)</label>
@@ -375,6 +387,7 @@
 
   <!-- DASHBOARD TAB -->
   <section class="tab-panel" id="tab-dashboard">
+    <div id="renewal-banner"></div>
     <div class="segmented">
       <button class="active" id="seg-day" onclick="switchDashRange('day')">Today</button>
       <button id="seg-week" onclick="switchDashRange('week')">7 Days</button>
@@ -634,7 +647,6 @@ function renderWork(){
   const open = sessions.find(s=>s.status==='Open');
   const container = document.getElementById('work-content');
   if(!open){
-    const lastOdo = getLastKnownOdometer();
     container.innerHTML = `
       <div class="meter">
         <div class="flag"><span style="width:7px;height:7px;border-radius:50%;background:var(--text-dim);display:inline-block;"></span><span class="label" style="color:var(--text-dim);">For Hire</span></div>
@@ -643,12 +655,13 @@ function renderWork(){
       <div class="card">
         <h2>Start Work</h2>
         <label>Starting Odometer (km)</label>
-        <input type="number" inputmode="decimal" id="start-odo" value="${lastOdo!=null?lastOdo:''}" placeholder="e.g. 12840">
-        ${lastOdo!=null?`<div class="helptext">Prefilled from your last recorded odometer reading — change it if this isn't correct.</div>`:''}
+        <input type="number" inputmode="decimal" id="start-odo" placeholder="e.g. 12840">
+        <div class="helptext" id="start-odo-warning" style="min-height:14px;"></div>
       </div>
       <div class="sticky-cta">
         <div id="start-swipe"></div>
       </div>`;
+    attachOdoContinuity('start-odo', 'start-odo-warning');
     createSwipeButton(document.getElementById('start-swipe'), 'Slide to Start Work  ➜', startWork);
   } else {
     container.innerHTML = `
@@ -717,6 +730,8 @@ async function endWork(){
   open.endLoc = loc;
   save('fleet_sessions', sessions);
   renderWork();
+  attachOdoContinuity('fuel-odo', 'fuel-odo-warning');
+  attachOdoContinuity('pt-start-odo', 'pt-odo-warning');
   return true;
 }
 async function deleteSession(id){
@@ -728,6 +743,15 @@ async function deleteSession(id){
 function renderWorkHistory(){
   const today = todayStr();
   const todays = sessions.filter(s=>s.date===today).sort((a,b)=>a.startTime.localeCompare(b.startTime));
+
+  const closedToday = todays.filter(s=>s.status==='Closed');
+  const todayKm = closedToday.reduce((sum,s)=>sum+(s.endOdo-s.startOdo),0);
+  const todayIncome = closedToday.reduce((sum,s)=>sum+s.cash+s.online,0);
+  const kmEl = document.getElementById('today-km');
+  const incomeEl = document.getElementById('today-income');
+  if(kmEl) kmEl.textContent = todayKm + ' km';
+  if(incomeEl) incomeEl.textContent = money(round2(todayIncome));
+
   const el = document.getElementById('work-history');
   if(todays.length===0){ el.innerHTML = '<div class="empty">No sessions logged today yet.</div>'; return; }
   el.innerHTML = todays.map(s=>{
@@ -766,8 +790,31 @@ function getLastKnownOdometer(){
   return max;
 }
 
+// Prefills an odometer field with the last known reading (only if it's currently
+// empty, so we never overwrite something the person already typed) and wires a
+// live warning if what they enter doesn't line up with that last reading.
+function attachOdoContinuity(inputId, warningId){
+  const input = document.getElementById(inputId);
+  const warnEl = document.getElementById(warningId);
+  if(!input || !warnEl) return;
+  const lastOdo = getLastKnownOdometer();
+  if(!input.value && lastOdo!=null) input.value = lastOdo;
+  const check = ()=>{
+    const val = Number(input.value);
+    const last = getLastKnownOdometer();
+    if(!val || last==null){ warnEl.textContent=''; warnEl.style.color=''; return; }
+    const gap = val - last;
+    if(gap === 0){ warnEl.textContent=''; warnEl.style.color=''; }
+    else if(gap > 0){ warnEl.textContent = `⚠ ${gap} km unaccounted for since your last recorded odometer (${last} km)`; warnEl.style.color='var(--red)'; }
+    else { warnEl.textContent = `⚠ This is ${Math.abs(gap)} km before your last recorded odometer (${last} km) — check for a typo`; warnEl.style.color='var(--red)'; }
+  };
+  input.addEventListener('input', check);
+  check();
+}
+
 function initPersonalTripForm(){
   document.getElementById('pt-date').value = todayStr();
+  attachOdoContinuity('pt-start-odo', 'pt-odo-warning');
 }
 function savePersonalTrip(){
   const date = document.getElementById('pt-date').value;
@@ -783,6 +830,8 @@ function savePersonalTrip(){
   document.getElementById('pt-note').value='';
   renderPersonalTrips();
   renderWork(); // refresh Start Work's prefilled odometer to account for this trip
+  attachOdoContinuity('pt-start-odo', 'pt-odo-warning'); // re-prefill for the next trip
+  attachOdoContinuity('fuel-odo', 'fuel-odo-warning'); // fuel's suggestion is now stale too
 }
 async function deletePersonalTrip(id){
   if(!await showConfirm('Delete this personal trip?')) return;
@@ -833,6 +882,7 @@ function initFuelForm(){
   ['fuel-odo','fuel-price','fuel-amount'].forEach(id=>{
     document.getElementById(id).addEventListener('input', updateFuelPreview);
   });
+  attachOdoContinuity('fuel-odo', 'fuel-odo-warning');
 }
 function updateFuelPreview(){
   const price = Number(document.getElementById('fuel-price').value);
@@ -856,6 +906,8 @@ function saveFuelEntry(){
   document.getElementById('fuel-amount').value='';
   document.getElementById('fuel-preview').textContent='';
   renderFuelHistory();
+  attachOdoContinuity('fuel-odo', 'fuel-odo-warning'); // re-prefill for the next fill-up
+  attachOdoContinuity('pt-start-odo', 'pt-odo-warning'); // personal trip's suggestion is now stale too
 }
 async function deleteFuel(id){
   if(!await showConfirm('Delete this fuel entry?')) return;
@@ -913,9 +965,34 @@ async function deleteFx(id){
   save('fleet_expenses', fixedExpenses);
   renderFixedExpenses();
 }
+function getUrgentRenewals(){
+  const today = new Date();
+  return fixedExpenses.map(fx=>{
+    const expiry = new Date(fx.expiry);
+    const daysLeft = Math.round((expiry-today)/(1000*60*60*24));
+    return {...fx, daysLeft};
+  }).filter(fx=>fx.daysLeft<=30).sort((a,b)=>a.daysLeft-b.daysLeft);
+}
+function updateRenewalNavBadge(){
+  const urgent = getUrgentRenewals();
+  const navBtn = document.getElementById('nav-expenses');
+  if(!navBtn) return;
+  let dot = navBtn.querySelector('.nav-alert-dot');
+  if(urgent.length > 0){
+    if(!dot){
+      dot = document.createElement('span');
+      dot.className = 'nav-alert-dot';
+      dot.style.cssText = 'position:absolute; top:6px; right:22%; width:8px; height:8px; border-radius:50%; background:var(--red);';
+      navBtn.style.position = 'relative';
+      navBtn.appendChild(dot);
+    }
+  } else if(dot){
+    dot.remove();
+  }
+}
 function renderFixedExpenses(){
   const el = document.getElementById('fx-list');
-  if(fixedExpenses.length===0){ el.innerHTML = '<div class="empty">No renewals added yet.</div>'; return; }
+  if(fixedExpenses.length===0){ el.innerHTML = '<div class="empty">No renewals added yet.</div>'; updateRenewalNavBadge(); return; }
   const today = new Date();
   let rows = fixedExpenses.map(fx=>{
     const daily = fxDailyCost(fx);
@@ -941,6 +1018,7 @@ function renderFixedExpenses(){
     <div class="amt" style="color:var(--amber);">${money(round2(total))}</div>
   </div>`;
   el.innerHTML = rows;
+  updateRenewalNavBadge();
 }
 function totalDailyFixedCost(){
   return fixedExpenses.reduce((s,fx)=>s+fxDailyCost(fx),0);
@@ -1078,6 +1156,19 @@ function rangeWindow(range){
   return {start, end, days};
 }
 function renderDashboard(){
+  const urgent = getUrgentRenewals();
+  const bannerEl = document.getElementById('renewal-banner');
+  if(bannerEl){
+    if(urgent.length===0){ bannerEl.innerHTML=''; }
+    else {
+      const lines = urgent.map(fx=>{
+        const label = fx.daysLeft<0 ? `expired ${Math.abs(fx.daysLeft)} day${Math.abs(fx.daysLeft)===1?'':'s'} ago` : `expires in ${fx.daysLeft} day${fx.daysLeft===1?'':'s'}`;
+        return `${fx.type} — ${label}`;
+      }).join('<br>');
+      bannerEl.innerHTML = `<div class="renewal-banner"><div class="title">⚠ Renewal${urgent.length>1?'s':''} needing attention</div>${lines}</div>`;
+    }
+  }
+
   const {start, end, days} = rangeWindow(dashRange);
   const inRange = d => { const dt = new Date(d); return dt>=start && dt<=end; };
 
