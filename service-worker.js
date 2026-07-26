@@ -1,6 +1,8 @@
-// Bump this version string whenever index.html/manifest/icons change, so returning
-// users actually get the update instead of a stale cached copy.
-const CACHE_NAME = 'kanishka-fleet-v1';
+// Bump this version string whenever index.html/manifest/icons change. This forces
+// the browser to detect service-worker.js itself changed, re-run install/activate,
+// and clear out the old cache — otherwise it can keep serving a stale cached app
+// indefinitely even after you upload a new index.html to GitHub.
+const CACHE_NAME = 'kanishka-fleet-v2';
 const APP_SHELL = [
   './',
   './index.html',
@@ -25,13 +27,21 @@ self.addEventListener('activate', event => {
   self.clients.claim();
 });
 
+// Network-first: always try to fetch the latest version first. Only fall back to
+// the cached copy if the network request fails (i.e. genuinely offline). This means
+// re-uploading a new index.html to GitHub takes effect immediately on next load,
+// instead of silently serving a stale cached version like before.
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
-  // Only handle same-origin app-shell requests. Cross-origin requests (Google Fonts
-  // CDN) are left untouched and go straight to the network as normal.
   if(url.origin === location.origin){
     event.respondWith(
-      caches.match(event.request).then(cached => cached || fetch(event.request))
+      fetch(event.request)
+        .then(response => {
+          const clone = response.clone();
+          caches.open(CACHE_NAME).then(cache => cache.put(event.request, clone));
+          return response;
+        })
+        .catch(() => caches.match(event.request))
     );
   }
 });
