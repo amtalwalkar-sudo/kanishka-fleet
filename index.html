@@ -3,23 +3,13 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<meta name="theme-color" content="#12151C">
+<meta name="theme-color" content="#16181A">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="manifest" href="manifest.json">
-<link rel="icon" href="icon-192.png">
-<link rel="apple-touch-icon" href="icon-192.png">
 <title>Kanishka Fleet — Daily Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script>
-if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('service-worker.js').catch(e=>console.error('Service worker registration failed:', e));
-  });
-}
-</script>
 
 <style>
   :root{
@@ -362,6 +352,7 @@ if('serviceWorker' in navigator){
         <label>Start Date</label>
         <input type="date" id="ln-start">
         <button class="btn btn-primary" onclick="saveLoan()">Save Loan Terms</button>
+        <button class="btn btn-danger" id="ln-delete-btn" onclick="deleteLoan()" style="display:none;">Delete Loan Record</button>
         <div class="helptext" id="ln-emi-preview"></div>
       </div>
 
@@ -431,15 +422,6 @@ if('serviceWorker' in navigator){
       </div>
       <div id="calendar-container"></div>
       <div class="helptext">Green = profitable day, red = day ran at a loss. Only days with a closed work session are shown/colored. Tap a day in Grid view for a breakdown.</div>
-    </div>
-
-    <div class="divider-label">Backup & Transfer</div>
-    <div class="card">
-      <h2>Export / Import Data</h2>
-      <button class="btn btn-ghost" onclick="exportData()">Export All Data (.json)</button>
-      <button class="btn btn-ghost" onclick="document.getElementById('import-file-input').click()">Import Data (.json)</button>
-      <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="importData(event)">
-      <div class="helptext">Your data is saved only on this device/browser. Use Export before switching phones or reinstalling the app, then Import on the new one to bring everything back — sessions, fuel log, expenses, loan, and personal trips.</div>
     </div>
   </section>
 </main>
@@ -1006,6 +988,22 @@ function saveLoan(){
   loan = {principal, rate, tenureMonths, startDate, prepayments: loan?loan.prepayments:[]};
   save('fleet_loan', loan);
   renderLoan();
+  const preview = document.getElementById('ln-emi-preview');
+  const original = preview.textContent;
+  preview.textContent = '✓ Saved — ' + original;
+  vibrate(15);
+}
+async function deleteLoan(){
+  if(!loan) return;
+  if(!await showConfirm('Delete the entire loan record? This also removes every prepayment logged against it.')) return;
+  loan = null;
+  try{ localStorage.removeItem('fleet_loan'); }catch(e){}
+  document.getElementById('ln-principal').value = '';
+  document.getElementById('ln-rate').value = '';
+  document.getElementById('ln-tenure').value = '';
+  document.getElementById('ln-start').value = '';
+  renderLoan();
+  if(document.getElementById('tab-dashboard').classList.contains('active')) renderDashboard();
 }
 function savePrepayment(){
   if(!loan){ showAlert('Enter loan terms first'); return; }
@@ -1024,7 +1022,9 @@ async function deletePrepayment(id){
   renderLoan();
 }
 function renderLoan(){
+  const deleteBtn = document.getElementById('ln-delete-btn');
   if(loan){
+    deleteBtn.style.display = 'block';
     document.getElementById('ln-principal').value = loan.principal;
     document.getElementById('ln-rate').value = loan.rate;
     document.getElementById('ln-tenure').value = loan.tenureMonths;
@@ -1049,6 +1049,7 @@ function renderLoan(){
         </div>
       </div>`).join('') : '<div class="empty">No prepayments logged yet.</div>';
   } else {
+    deleteBtn.style.display = 'none';
     document.getElementById('ln-emi-preview').textContent = '';
     document.getElementById('loan-status').innerHTML = '<div class="empty">Enter loan terms above.</div>';
     document.getElementById('pp-list').innerHTML = '<div class="empty">No prepayments logged yet.</div>';
@@ -1224,52 +1225,6 @@ function showDayDetail(dateStr){
 }
 
 // ================= INIT =================
-// ================= BACKUP / TRANSFER =================
-const DATA_KEYS = ['fleet_sessions','fleet_fuel','fleet_expenses','fleet_loan','fleet_personal'];
-
-function exportData(){
-  const payload = {exportedAt: new Date().toISOString(), data:{}};
-  DATA_KEYS.forEach(key=>{
-    const raw = localStorage.getItem(key);
-    if(raw!=null) payload.data[key] = JSON.parse(raw);
-  });
-  const blob = new Blob([JSON.stringify(payload, null, 2)], {type:'application/json'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  const stamp = todayStr();
-  a.href = url;
-  a.download = `kanishka-fleet-backup-${stamp}.json`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
-  URL.revokeObjectURL(url);
-}
-
-async function importData(event){
-  const file = event.target.files[0];
-  if(!file) return;
-  if(!await showConfirm('Import will overwrite your current data on this device with the file\'s contents. Continue?')){
-    event.target.value = '';
-    return;
-  }
-  try{
-    const text = await file.text();
-    const payload = JSON.parse(text);
-    const data = payload.data || payload; // tolerate a raw {key:value} file too
-    for(const key of DATA_KEYS){
-      if(data[key]!==undefined){
-        localStorage.setItem(key, JSON.stringify(data[key]));
-      }
-    }
-    showAlert('Import complete. Reloading the app…');
-    setTimeout(()=>location.reload(), 1200);
-  }catch(e){
-    console.error('Import failed', e);
-    showAlert('That file could not be read as a valid backup — make sure it\'s an unmodified export from this app.');
-  }
-  event.target.value = '';
-}
-
 async function init(){
   sessions = await loadArr('fleet_sessions');
   fuelEntries = await loadArr('fleet_fuel');
