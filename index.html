@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Kanishka Fleet Pro</title>
+
+  <!-- PWA & Mobile Web App Meta Tags -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#090d16">
+  <meta name="application-name" content="Kanishka Fleet">
+
+  <link rel="manifest" href="manifest.json">
+
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: rgba(19, 27, 46, 0.75);
+      --accent-cyan: #00f2fe;
+      --accent-blue: #4facfe;
+      --accent-grad: linear-gradient(135deg, #00f2fe 0%, #4facfe 100%);
+      --danger-grad: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+      --text: #f8fafc;
+      --muted: #64748b;
+      --border: rgba(255, 255, 255, 0.08);
+    }
+
+    * { box-sizing: border-box; touch-action: manipulation; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: var(--bg); color: var(--text); margin: 0; padding: 12px; padding-bottom: 90px; }
+
+    h2 { font-size: 1.4rem; margin: 0 0 12px 0; background: var(--accent-grad); -webkit-background-clip: text; -webkit-text-fill-color: transparent; font-weight: 900; letter-spacing: -0.5px; }
+
+    /* Install Banner Prompt */
+    .install-banner { display: none; background: var(--accent-grad); color: #000; padding: 12px; border-radius: 12px; font-weight: 800; font-size: 0.85rem; text-align: center; margin-bottom: 12px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,242,254,0.3); }
+
+    /* Navigation Bar */
+    .nav-bar { display: flex; background: rgba(15, 23, 42, 0.9); padding: 4px; border-radius: 16px; border: 1px solid var(--border); margin-bottom: 14px; gap: 4px; backdrop-filter: blur(12px); position: sticky; top: 8px; z-index: 100; }
+    .nav-btn { flex: 1; padding: 12px 2px; border: none; background: transparent; color: var(--muted); font-size: 0.72rem; font-weight: 800; border-radius: 12px; transition: all 0.3s ease; }
+    .nav-btn.active { background: var(--accent-grad); color: #000; box-shadow: 0 4px 20px rgba(0, 242, 254, 0.35); }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; animation: fadeIn 0.25s ease-out; }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Cards */
+    .card { background: var(--card-bg); backdrop-filter: blur(16px); padding: 16px; border-radius: 20px; border: 1px solid var(--border); margin-bottom: 14px; box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5); }
+    .card-title { font-size: 0.85rem; font-weight: 800; color: #94a3b8; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center; }
+
+    label { display: block; font-size: 0.78rem; font-weight: 700; color: #cbd5e1; margin-top: 10px; margin-bottom: 4px; }
+    input, select { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #2e3a52; background: #0b1120; color: #fff; font-size: 0.95rem; outline: none; transition: border 0.2s; }
+    input:focus, select:focus { border-color: var(--accent-cyan); }
+
+    /* Swipe Control */
+    .swipe-track { position: relative; width: 100%; height: 60px; background: #0b1120; border-radius: 30px; overflow: hidden; border: 1px solid var(--border); margin-top: 12px; }
+    .swipe-thumb { position: absolute; top: 4px; left: 4px; width: 52px; height: 52px; background: var(--accent-grad); border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; cursor: pointer; box-shadow: 0 4px 15px rgba(0,242,254,0.4); z-index: 2; transition: left 0.1s ease-out; }
+    .swipe-text { position: absolute; width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; font-weight: 800; color: #64748b; pointer-events: none; z-index: 1; letter-spacing: 0.5px; }
+
+    .btn { width: 100%; padding: 14px; border-radius: 12px; border: none; background: var(--accent-grad); color: #000; font-weight: 800; font-size: 0.95rem; margin-top: 10px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,242,254,0.25); }
+    .btn-danger { background: var(--danger-grad); color: #fff; box-shadow: 0 4px 15px rgba(255,65,108,0.25); }
+
+    /* Summary Stats */
+    .summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .stat-box { background: rgba(11, 17, 32, 0.7); padding: 12px; border-radius: 14px; border: 1px solid rgba(255,255,255,0.04); text-align: center; }
+    .stat-val { font-size: 1.15rem; font-weight: 900; color: var(--accent-cyan); margin-top: 2px; }
+    .stat-lbl { font-size: 0.68rem; color: #64748b; text-transform: uppercase; font-weight: 700; }
+
+    .log-item { background: #0b1120; padding: 12px; border-radius: 12px; margin-top: 8px; border-left: 4px solid var(--accent-cyan); font-size: 0.85rem; line-height: 1.5; border: 1px solid var(--border); }
+    .tag { display: inline-block; padding: 3px 8px; border-radius: 8px; font-size: 0.7rem; font-weight: 800; margin-right: 4px; }
+    .tag-biz { background: rgba(0, 242, 254, 0.15); color: #00f2fe; }
+    .tag-pers { background: rgba(255, 65, 108, 0.15); color: #ff416c; }
+    .tag-active { background: rgba(56, 239, 125, 0.15); color: #38ef7d; }
+    .tag-expired { background: rgba(255, 65, 108, 0.15); color: #ff416c; }
+  </style>
+</head>
+<body>
+
+  <!-- Install Banner -->
+  <div id="installBtn" class="install-banner" onclick="triggerAppInstall()">
+    📲 TAP HERE TO INSTALL AS AN APP
+  </div>
+
+  <h2>Kanishka Fleet Pro</h2>
+
+  <div class="nav-bar">
+    <button class="nav-btn active" onclick="switchTab('dashboard', this)">Dashboard</button>
+    <button class="nav-btn" onclick="switchTab('fuel', this)">Fuel Log</button>
+    <button class="nav-btn" onclick="switchTab('fixed', this)">Overhead & Loan</button>
+  </div>
+
+  <!-- DASHBOARD TAB -->
+  <div id="dashboard" class="tab-content active">
+    <div class="card">
+      <div class="card-title">
+        <span>Shift Controls</span>
+        <span id="shiftBadge" class="tag tag-pers">OFF DUTY</span>
+      </div>
+
+      <div id="shiftInputs">
+        <label>Start Odometer (KM)</label>
+        <input type="number" id="startKm" placeholder="e.g. 15000">
+      </div>
+
+      <div class="swipe-track" id="swipeTrack">
+        <div class="swipe-text" id="swipeText">SWIPE RIGHT TO START WORK ▶</div>
+        <div class="swipe-thumb" id="swipeThumb">⚡</div>
+      </div>
+    </div>
+
+    <!-- Live Break-Even Dashboard -->
+    <div class="card">
+      <div class="card-title">Break-Even & Financials</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Daily Target</div>
+          <div class="stat-val" id="dashDailyTarget" style="color:#ffe000;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Break-Even Status</div>
+          <div class="stat-val" id="dashBeStatus" style="font-size:0.85rem;">₹0 Remaining</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Total Shift Rev</div>
+          <div class="stat-val" id="dashTotalRev" style="color:#38ef7d;">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Net Profit</div>
+          <div class="stat-val" id="dashNetProfit">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Shift History</div>
+      <div id="shiftLogs">No shifts logged yet.</div>
+    </div>
+  </div>
+
+  <!-- FUEL LOG TAB -->
+  <div id="fuel" class="tab-content">
+    <div class="card">
+      <div class="card-title">Add Fuel Refill</div>
+      <label>Category</label>
+      <select id="fuelCat">
+        <option value="Business">Business Trip</option>
+        <option value="Personal">Personal Trip</option>
+      </select>
+
+      <label>Fuel Total Amount (₹)</label>
+      <input type="number" id="fuelAmt" placeholder="e.g. 1000">
+
+      <label>Fuel Quantity (Kg or Liters)</label>
+      <input type="number" id="fuelQty" placeholder="e.g. 11.5">
+
+      <label>Current Odometer (KM)</label>
+      <input type="number" id="fuelOdo" placeholder="e.g. 15200">
+
+      <button class="btn" onclick="addFuelLog()">Save Fuel Log</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fuel & Efficiency Analytics</div>
+      <div class="summary-grid">
+        <div class="stat-box">
+          <div class="stat-lbl">Avg Mileage</div>
+          <div class="stat-val" id="avgMileage" style="color:#00f2fe;">0 KM/Unit</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Cost per KM</div>
+          <div class="stat-val" id="costPerKm" style="color:#ffe000;">₹0/KM</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Business Fuel</div>
+          <div class="stat-val" id="bizFuelSpent">₹0</div>
+        </div>
+        <div class="stat-box">
+          <div class="stat-lbl">Personal Fuel</div>
+          <div class="stat-val" id="persFuelSpent" style="color:#ff416c;">₹0</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Fuel Log History</div>
+      <div id="fuelLogs">No fuel records.</div>
+    </div>
+  </div>
+
+  <!-- OVERHEAD TAB -->
+  <div id="fixed" class="tab-content">
+    <div class="card">
+      <div class="card-title">Monthly Vehicle EMI</div>
+      <label>Monthly Vehicle Loan EMI (₹)</label>
+      <input type="number" id="loanEmi" placeholder="e.g. 12000" oninput="renderAll()">
+    </div>
+
+    <div class="card">
+      <div class="card-title">Add Validated Expense (Ins/Tax/Permit)</div>
+      <label>Expense Name</label>
+      <input type="text" id="expName" placeholder="e.g. Comprehensive Insurance">
+
+      <label>Total Amount Paid (₹)</label>
+      <input type="number" id="expAmt" placeholder="e.g. 18000">
+
+      <label>Start Date</label>
+      <input type="date" id="expStart">
+
+      <label>Expiry Date</label>
+      <input type="date" id="expExpiry">
+
+      <button class="btn" onclick="addFixedExpense()">Add Expense & Calculate Validity</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Active vs Expired Overheads</div>
+      <div id="fixedExpList">No expenses added.</div>
+    </div>
+
+    <!-- BACKUP SECTION -->
+    <div class="card">
+      <div class="card-title">Data Backup & Export</div>
+      <button class="btn" style="background: linear-gradient(135deg, #4285F4 0%, #34A853 100%); color: #fff;" onclick="backupToGoogleDrive()">
+        ☁️ Backup to Google Drive / Dropbox
+      </button>
+      <button class="btn" style="background: #1e293b; color: #fff; border: 1px solid var(--border);" onclick="downloadJSON()">
+        💾 Save Local JSON Backup
+      </button>
+    </div>
+
+    <div class="card">
+      <button class="btn btn-danger" onclick="clearData()">Reset Fleet Manager Data</button>
+    </div>
+  </div>
+
+  <script>
+    // Tab Navigation
+    function switchTab(tabId, btn) {
+      document.querySelectorAll('.tab-content').forEach(e => e.classList.remove('active'));
+      document.querySelectorAll('.nav-btn').forEach(e => e.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      btn.classList.add('active');
+    }
+
+    // Touch Controls for Swipe Switcher
+    const thumb = document.getElementById('swipeThumb');
+    const track = document.getElementById('swipeTrack');
+    const text = document.getElementById('swipeText');
+    let startX = 0, currentX = 0, isDragging = false;
+
+    thumb.addEventListener('touchstart', (e) => {
+      isDragging = true;
+      startX = e.touches[0].clientX - thumb.offsetLeft;
+    });
+
+    thumb.addEventListener('touchmove', (e) => {
+      if (!isDragging) return;
+      let max = track.offsetWidth - thumb.offsetWidth - 8;
+      currentX = e.touches[0].clientX - startX;
+      if (currentX < 4) currentX = 4;
+      if (currentX > max) currentX = max;
+      thumb.style.left = currentX + 'px';
+    });
+
+    thumb.addEventListener('touchend', () => {
+      if (!isDragging) return;
+      isDragging = false;
+      let max = track.offsetWidth - thumb.offsetWidth - 8;
+      if (currentX > max * 0.75) {
+        thumb.style.left = max + 'px';
+        handleSwipeAction();
+      } else {
+        thumb.style.left = '4px';
+      }
+    });
+
+    function handleSwipeAction() {
+      const active = JSON.parse(localStorage.getItem('k_active_shift') || 'null');
+      if (!active) {
+        const km = document.getElementById('startKm').value;
+        if (!km) {
+          alert('Please enter starting odometer reading!');
+          thumb.style.left = '4px';
+          return;
+        }
+        localStorage.setItem('k_active_shift', JSON.stringify({ startKm: km, startTime: new Date().toLocaleString() }));
+      } else {
+        const endKm = prompt('Enter Ending Odometer (KM):');
+        const rev = prompt('Enter Shift Revenue Earned (₹):');
+        if (endKm && rev) {
+          const logs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+          logs.unshift({
+            startKm: active.startKm,
+            endKm: endKm,
+            kmRun: Number(endKm) - Number(active.startKm),
+            revenue: Number(rev),
+            time: new Date().toLocaleString()
+          });
+          localStorage.setItem('k_shift_logs', JSON.stringify(logs));
+          localStorage.removeItem('k_active_shift');
+        }
+      }
+      thumb.style.left = '4px';
+      renderAll();
+    }
+
+    // Fuel Logging
+    function addFuelLog() {
+      const cat = document.getElementById('fuelCat').value;
+      const amt = Number(document.getElementById('fuelAmt').value || 0);
+      const qty = Number(document.getElementById('fuelQty').value || 0);
+      const odo = Number(document.getElementById('fuelOdo').value || 0);
+
+      if (!amt || !qty || !odo) { alert('Enter fuel amount, quantity, and current odometer reading.'); return; }
+
+      const logs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      logs.unshift({ cat: cat, amt: amt, qty: qty, odo: odo, time: new Date().toLocaleString() });
+      localStorage.setItem('k_fuel_logs', JSON.stringify(logs));
+
+      document.getElementById('fuelAmt').value = '';
+      document.getElementById('fuelQty').value = '';
+      document.getElementById('fuelOdo').value = '';
+      renderAll();
+    }
+
+    // Fixed Overhead Expenses
+    function addFixedExpense() {
+      const name = document.getElementById('expName').value.trim();
+      const amt = Number(document.getElementById('expAmt').value || 0);
+      const start = document.getElementById('expStart').value;
+      const expiry = document.getElementById('expExpiry').value;
+
+      if (!name || !amt || !start || !expiry) {
+        alert('Please fill out all fields.');
+        return;
+      }
+
+      const list = JSON.parse(localStorage.getItem('k_fixed_list') || '[]');
+      list.unshift({ id: Date.now(), name: name, amt: amt, start: start, expiry: expiry });
+      localStorage.setItem('k_fixed_list', JSON.stringify(list));
+
+      document.getElementById('expName').value = '';
+      document.getElementById('expAmt').value = '';
+      document.getElementById('expStart').value = '';
+      document.getElementById('expExpiry').value = '';
+      renderAll();
+    }
+
+    function deleteFixedExp(id) {
+      let list = JSON.parse(localStorage.getItem('k_fixed_list') || '[]');
+      list = list.filter(item => item.id !== id);
+      localStorage.setItem('k_fixed_list', JSON.stringify(list));
+      renderAll();
+    }
+
+    // Master Render Engine
+    function renderAll() {
+      const today = new Date().toISOString().split('T')[0];
+
+      // 1. Loans & Pro-rated Active Expenses
+      const emi = Number(document.getElementById('loanEmi').value || localStorage.getItem('k_loan_emi') || 0);
+      localStorage.setItem('k_loan_emi', emi);
+      document.getElementById('loanEmi').value = emi || '';
+
+      const dailyEmi = emi / 30;
+      let activeDailyFixed = dailyEmi;
+
+      const fixedList = JSON.parse(localStorage.getItem('k_fixed_list') || '[]');
+      const fixedContainer = document.getElementById('fixedExpList');
+
+      if (fixedList.length === 0) {
+        fixedContainer.innerHTML = '<span style="color:#64748b">No validated expenses added.</span>';
+      } else {
+        fixedContainer.innerHTML = fixedList.map(item => {
+          const isActive = today >= item.start && today <= item.expiry;
+          const startDate = new Date(item.start);
+          const expiryDate = new Date(item.expiry);
+          const totalDays = Math.max(1, Math.round((expiryDate - startDate) / (1000 * 60 * 60 * 24)));
+          const dailyCost = item.amt / totalDays;
+
+          if (isActive) {
+            activeDailyFixed += dailyCost;
+          }
+
+          return `
+            <div class="log-item" style="border-left-color: ${isActive ? '#38ef7d' : '#ff416c'}">
+              <div style="display:flex; justify-content:space-between;">
+                <strong>${item.name}</strong>
+                <span class="tag ${isActive ? 'tag-active' : 'tag-expired'}">${isActive ? 'ACTIVE' : 'EXPIRED'}</span>
+              </div>
+              Total Amount: ₹${item.amt} | Valid Days: ${totalDays} days<br>
+              Daily Share: <strong>₹${dailyCost.toFixed(1)}/day</strong><br>
+              <small style="color:#64748b">Validity: ${item.start} to ${item.expiry}</small><br>
+              <button style="background:transparent; border:none; color:#ff416c; font-size:0.75rem; padding:0; margin-top:4px; cursor:pointer;" onclick="deleteFixedExp(${item.id})">Remove Expense</button>
+            </div>
+          `;
+        }).join('');
+      }
+
+      const totalDailyBreakEven = Math.round(activeDailyFixed);
+      document.getElementById('dashDailyTarget').innerText = '₹' + totalDailyBreakEven;
+
+      // 2. Active Shift State
+      const activeShift = JSON.parse(localStorage.getItem('k_active_shift') || 'null');
+      const badge = document.getElementById('shiftBadge');
+      const shiftInputs = document.getElementById('shiftInputs');
+
+      if (activeShift) {
+        badge.innerText = 'ON DUTY (' + activeShift.startKm + ' KM)';
+        badge.className = 'tag tag-active';
+        text.innerText = 'SWIPE RIGHT TO END SHIFT ⏹';
+        shiftInputs.style.display = 'none';
+      } else {
+        badge.innerText = 'OFF DUTY';
+        badge.className = 'tag tag-pers';
+        text.innerText = 'SWIPE RIGHT TO START WORK ▶';
+        shiftInputs.style.display = 'block';
+      }
+
+      // 3. Revenue Metrics
+      const shiftLogs = JSON.parse(localStorage.getItem('k_shift_logs') || '[]');
+      let totalRev = 0;
+      shiftLogs.forEach(i => totalRev += Number(i.revenue || 0));
+      document.getElementById('dashTotalRev').innerText = '₹' + totalRev;
+
+      // 4. Fuel & Efficiency Analytics
+      const fuelLogs = JSON.parse(localStorage.getItem('k_fuel_logs') || '[]');
+      let bizCost = 0, persCost = 0, totalFuelQty = 0, totalFuelCost = 0;
+
+      fuelLogs.forEach(i => {
+        const cost = Number(i.amt || 0);
+        totalFuelCost += cost;
+        totalFuelQty += Number(i.qty || 0);
+
+        if (i.cat === 'Business') bizCost += cost;
+        else persCost += cost;
+      });
+
+      document.getElementById('bizFuelSpent').innerText = '₹' + bizCost;
+      document.getElementById('persFuelSpent').innerText = '₹' + persCost;
+
+      // Mileage via Odometer Delta
+      let calculatedMileage = 0;
+      let calculatedCostPerKm = 0;
+
+      if (fuelLogs.length >= 2) {
+        const latestOdo = Number(fuelLogs[0].odo || 0);
+        const oldestOdo = Number(fuelLogs[fuelLogs.length - 1].odo || 0);
+        const totalDistance = latestOdo - oldestOdo;
+
+        if (totalDistance > 0 && totalFuelQty > 0) {
+          calculatedMileage = totalDistance / totalFuelQty;
+          calculatedCostPerKm = 
