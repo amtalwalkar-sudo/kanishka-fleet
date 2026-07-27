@@ -1407,8 +1407,10 @@ async function shareBackup(){
     });
     markExported();
   }catch(e){
-    // user cancelled the share sheet, or share failed — not a real error, don't nag them
-    if(e && e.name !== 'AbortError'){ console.error('share failed', e); }
+    if(e && e.name === 'AbortError') return; // user cancelled the share sheet — nothing to do
+    console.error('share failed', e);
+    showAlert('Sharing didn\'t work on this device (' + (e && e.message ? e.message : 'unknown reason') + ') — downloading the file instead. Move it to Drive/Dropbox manually from your Downloads folder.');
+    exportData();
   }
 }
 function initShareBackupButton(){
