@@ -464,6 +464,11 @@
       <button class="btn btn-ghost" id="snapshot-restore-btn" onclick="restoreSnapshot()" style="display:none;">Restore from Snapshot</button>
       <div class="helptext">The app quietly saves a same-day snapshot automatically, and right before every Import — so a bad import or an accidental mistake can be undone. <strong>This does not protect against clearing browser data or reinstalling</strong> — only Export (above) is a true off-device backup.</div>
     </div>
+    <div class="card">
+      <h2>Reset App</h2>
+      <button class="btn btn-danger" onclick="resetApp()">Delete All Data & Reset</button>
+      <div class="helptext">Wipes everything on this device — sessions, fuel log, expenses, loan, personal trips, and the snapshot. Useful for starting fresh or troubleshooting. <strong>This cannot be undone</strong> — export a backup first if there's anything you want to keep.</div>
+    </div>
   </section>
 </main>
 
@@ -1491,6 +1496,20 @@ async function restoreSnapshot(){
     else{ localStorage.removeItem(key); }
   }
   showAlert('Restored. Reloading the app…');
+  setTimeout(()=>location.reload(), 1200);
+}
+async function resetApp(){
+  if(!hasAnyData()){ showAlert('There\'s no data on this device to reset.'); return; }
+  const lastExportRaw = localStorage.getItem(LAST_EXPORT_KEY);
+  const exportWarning = lastExportRaw
+    ? `Your last backup was ${new Date(Number(lastExportRaw)).toLocaleString('en-IN')}.`
+    : `You have never exported a backup.`;
+  if(!await showConfirm(`This permanently deletes ALL data on this device — sessions, fuel log, expenses, loan, personal trips. ${exportWarning} Continue?`)) return;
+  if(!await showConfirm(`Really sure? This is your last chance to back out — there's no undo after this.`)) return;
+  [...DATA_KEYS, SNAPSHOT_KEY, LAST_EXPORT_KEY].forEach(key=>{
+    try{ localStorage.removeItem(key); }catch(e){}
+  });
+  showAlert('All data deleted. Reloading the app…');
   setTimeout(()=>location.reload(), 1200);
 }
 function renderSnapshotInfo(){
