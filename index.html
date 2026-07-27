@@ -250,8 +250,6 @@
   .cal-list-amt.neg{ color:var(--red); }
 </style>
 
-
-<link rel="manifest" href="manifest.json">
 </head>
 <body>
 
@@ -291,9 +289,7 @@
       <div class="helptext">Personal trips don't count as income and their km/fuel cost are excluded from the breakeven and profit calendar — logging them here just keeps your odometer and fuel records continuous and explainable.</div>
     </div>
     <div class="card" id="personal-history"></div>
-  <div class="card"><h2>Performance</h2><div class="stat-grid">
-<div class="stat"><div class="k">Revenue After Fuel</div><div class="v neu" id="dash-revfuel">₹0</div></div>
-<div class="stat"><div class="k">Revenue / Hour</div><div class="v neu" id="dash-revhr">₹0/hr</div></div></div></div></section>
+  </section>
 
   <!-- FUEL TAB -->
   <section class="tab-panel" id="tab-fuel">
@@ -1197,11 +1193,6 @@ function renderDashboard(){
   profitEl.className = 'v ' + (profit>=0 ? 'pos' : 'neg');
   document.getElementById('profit-hero').className = 'hero-profit ' + (profit>=0 ? 'pos' : 'neg');
   document.getElementById('dash-km').textContent = km + ' km';
-  const hours=closed.reduce((s,x)=>s+(((new Date(x.date+'T'+x.endTime))-(new Date(x.date+'T'+x.startTime)))/3600000),0);
-  const revenueAfterFuel=income-fuelCost;
-  document.getElementById('dash-revfuel').textContent=money(round2(revenueAfterFuel));
-  document.getElementById('dash-revhr').textContent=hours>0?money(round2(revenueAfterFuel/hours))+'/hr':'—';
-
 
   document.getElementById('dash-mileage').textContent = avgMileage!=null ? round2(avgMileage)+' km/kg' : '—';
   document.getElementById('dash-costperkm').textContent = derivedFuel.length ? '₹'+round2(avgCostPerKm)+'/km' : '—';
@@ -1344,12 +1335,6 @@ async function init(){
   setInterval(()=>{ if(document.getElementById('tab-work').classList.contains('active')) updateElapsedDisplay(); }, 15000);
 }
 init();
-</script>
-
-<script>
-if ('serviceWorker' in navigator) {
- window.addEventListener('load', ()=>navigator.serviceWorker.register('./service-worker.js').catch(console.error));
-}
 </script>
 </body>
 </html>
