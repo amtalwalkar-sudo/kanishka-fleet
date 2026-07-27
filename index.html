@@ -201,6 +201,12 @@
   }
   .renewal-banner .title{ font-family:var(--display); font-weight:600; color:var(--red); font-size:13px; margin-bottom:4px; }
 
+  .export-banner{
+    background:rgba(255,107,53,0.1); border:1px solid var(--led-dim); border-radius:12px;
+    padding:12px 14px; margin-bottom:14px; font-size:13px; line-height:1.5;
+  }
+  .export-banner .title{ font-family:var(--display); font-weight:600; color:var(--led); font-size:13px; margin-bottom:4px; }
+
   /* ---------- Swipe-to-confirm slider (Start Work / End Session) ---------- */
   .swipe-wrap{ margin-top:18px; }
   .swipe-track{
@@ -289,6 +295,10 @@
       <div class="helptext">Personal trips don't count as income and their km/fuel cost are excluded from the breakeven and profit calendar — logging them here just keeps your odometer and fuel records continuous and explainable.</div>
     </div>
     <div class="card" id="personal-history"></div>
+    <div class="card"><h2>Performance</h2><div class="stat-grid">
+      <div class="stat"><div class="k">Revenue After Fuel</div><div class="v neu" id="dash-revfuel">₹0</div></div>
+      <div class="stat"><div class="k">Revenue / Hour</div><div class="v neu" id="dash-revhr">₹0/hr</div></div>
+    </div></div>
   </section>
 
   <!-- FUEL TAB -->
@@ -435,6 +445,24 @@
       </div>
       <div id="calendar-container"></div>
       <div class="helptext">Green = profitable day, red = day ran at a loss. Only days with a closed work session are shown/colored. Tap a day in Grid view for a breakdown.</div>
+    </div>
+
+    <div class="divider-label">Backup & Safety Net</div>
+    <div id="export-reminder-banner"></div>
+    <div class="card">
+      <h2>Export / Import Data</h2>
+      <button class="btn btn-primary" onclick="exportData()">Save Backup File (.json)</button>
+      <div class="helptext" id="export-location-note">Saves to your phone's regular <strong>Downloads</strong> folder — open the Files app → Downloads to find <span id="export-filename-preview"></span>, then move it to Drive/Dropbox/email yourself from there.</div>
+      <button class="btn btn-ghost" id="share-backup-btn" onclick="shareBackup()" style="display:none; margin-top:14px;">Try Direct Share Instead</button>
+      <button class="btn btn-ghost" onclick="document.getElementById('import-file-input').click()">Import Data (.json)</button>
+      <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="importData(event)">
+      <div class="helptext">"Try Direct Share Instead" attempts to open your phone's native share sheet directly to Drive/Gmail/WhatsApp — but this doesn't work reliably on every phone or browser (Chrome's file-sharing support varies), so it's offered as an extra option, not the main path. If it fails, it automatically falls back to the regular Save above.</div>
+    </div>
+    <div class="card">
+      <h2>Same-Day Snapshot</h2>
+      <div class="helptext" id="snapshot-info">No snapshot yet.</div>
+      <button class="btn btn-ghost" id="snapshot-restore-btn" onclick="restoreSnapshot()" style="display:none;">Restore from Snapshot</button>
+      <div class="helptext">The app quietly saves a same-day snapshot automatically, and right before every Import — so a bad import or an accidental mistake can be undone. <strong>This does not protect against clearing browser data or reinstalling</strong> — only Export (above) is a true off-device backup.</div>
     </div>
   </section>
 </main>
@@ -1156,6 +1184,9 @@ function rangeWindow(range){
   return {start, end, days};
 }
 function renderDashboard(){
+  renderSnapshotInfo();
+  renderExportReminder();
+
   const urgent = getUrgentRenewals();
   const bannerEl = document.getElementById('renewal-banner');
   if(bannerEl){
@@ -1193,6 +1224,13 @@ function renderDashboard(){
   profitEl.className = 'v ' + (profit>=0 ? 'pos' : 'neg');
   document.getElementById('profit-hero').className = 'hero-profit ' + (profit>=0 ? 'pos' : 'neg');
   document.getElementById('dash-km').textContent = km + ' km';
+
+  const hours = closed.reduce((s,x)=>s+((new Date(x.date+'T'+x.endTime))-(new Date(x.date+'T'+x.startTime)))/3600000,0);
+  const revenueAfterFuel = income - fuelCost;
+  const revFuelEl = document.getElementById('dash-revfuel');
+  const revHrEl = document.getElementById('dash-revhr');
+  if(revFuelEl) revFuelEl.textContent = money(round2(revenueAfterFuel));
+  if(revHrEl) revHrEl.textContent = hours>0 ? money(round2(revenueAfterFuel/hours))+'/hr' : '—';
 
   document.getElementById('dash-mileage').textContent = avgMileage!=null ? round2(avgMileage)+' km/kg' : '—';
   document.getElementById('dash-costperkm').textContent = derivedFuel.length ? '₹'+round2(avgCostPerKm)+'/km' : '—';
@@ -1316,6 +1354,174 @@ function showDayDetail(dateStr){
 }
 
 // ================= INIT =================
+// ================= BACKUP, SNAPSHOT & SAFETY NET =================
+const DATA_KEYS = ['fleet_sessions','fleet_fuel','fleet_expenses','fleet_loan','fleet_personal'];
+const SNAPSHOT_KEY = 'fleet_snapshot';
+const LAST_EXPORT_KEY = 'fleet_last_export_at';
+const EXPORT_REMINDER_DAYS = 14;
+
+function hasAnyData(){
+  return DATA_KEYS.some(key=>{
+    const raw = localStorage.getItem(key);
+    if(raw==null) return false;
+    try{ const parsed = JSON.parse(raw); return Array.isArray(parsed) ? parsed.length>0 : true; }
+    catch(e){ return false; }
+  });
+}
+
+function buildBackupPayload(){
+  const payload = {exportedAt: new Date().toISOString(), data:{}};
+  DATA_KEYS.forEach(key=>{
+    const raw = localStorage.getItem(key);
+    if(raw!=null) payload.data[key] = JSON.parse(raw);
+  });
+  return payload;
+}
+function buildBackupFile(){
+  const payload = buildBackupPayload();
+  const stamp = todayStr();
+  return new File([JSON.stringify(payload, null, 2)], `kanishka-fleet-backup-${stamp}.json`, {type:'application/json'});
+}
+function markExported(){
+  try{ localStorage.setItem(LAST_EXPORT_KEY, String(Date.now())); }catch(e){}
+  renderExportReminder();
+}
+function exportData(silent){
+  const file = buildBackupFile();
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = file.name;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  markExported();
+  if(!silent){
+    showAlert(`Saved as "${file.name}" in your phone's Downloads folder. Open the Files app → Downloads to find it and move it to Drive/Dropbox/email if you'd like.`);
+  }
+  return file.name;
+}
+async function shareBackup(){
+  const file = buildBackupFile();
+  try{
+    await navigator.share({
+      files: [file],
+      title: 'Kanishka Fleet backup',
+      text: 'Backup of your fleet app data — save this in Drive, Gmail, or wherever you keep it safe.'
+    });
+    markExported();
+  }catch(e){
+    if(e && e.name === 'AbortError') return; // user cancelled the share sheet — nothing to do
+    console.error('share failed', e);
+    const filename = exportData(true); // silent=true, we show one combined message below instead
+    showAlert(`Direct sharing didn't work on this device (${e && e.message ? e.message : 'unknown reason'}) — saved "${filename}" to your Downloads folder instead. Open the Files app → Downloads to find it.`);
+  }
+}
+function initShareBackupButton(){
+  const btn = document.getElementById('share-backup-btn');
+  const previewEl = document.getElementById('export-filename-preview');
+  if(previewEl) previewEl.textContent = `"kanishka-fleet-backup-${todayStr()}.json"`;
+  if(!btn) return;
+  try{
+    const testFile = new File(['test'], 'test.json', {type:'application/json'});
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[testFile]})){
+      btn.style.display = 'block';
+    }
+  }catch(e){ /* Web Share with files not supported — button stays hidden, plain Export still works */ }
+}
+
+async function importData(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  if(!await showConfirm('Import will overwrite your current data on this device with the file\'s contents. Continue?')){
+    event.target.value = '';
+    return;
+  }
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    const data = payload.data || payload; // tolerate a raw {key:value} file too
+    if(hasAnyData()) takeSnapshot('right before this import'); // safety net in case the file is wrong
+    for(const key of DATA_KEYS){
+      if(data[key]!==undefined){
+        localStorage.setItem(key, JSON.stringify(data[key]));
+      }
+    }
+    showAlert('Import complete. Reloading the app…');
+    setTimeout(()=>location.reload(), 1200);
+  }catch(e){
+    console.error('Import failed', e);
+    showAlert('That file could not be read as a valid backup — make sure it\'s an unmodified export from this app.');
+  }
+  event.target.value = '';
+}
+
+// Same-day snapshot: a same-origin rollback point. This CANNOT survive clearing
+// browser data or uninstalling — only Export (a real downloaded file) protects
+// against that. This just guards against in-app mistakes (bad import, accidental
+// mass changes) during the current day.
+function takeSnapshot(reason){
+  const payload = {timestamp: Date.now(), reason: reason || 'daily', data:{}};
+  DATA_KEYS.forEach(key=>{
+    const raw = localStorage.getItem(key);
+    if(raw!=null) payload.data[key] = JSON.parse(raw);
+  });
+  try{ localStorage.setItem(SNAPSHOT_KEY, JSON.stringify(payload)); }catch(e){}
+}
+function maybeTakeDailySnapshot(){
+  try{
+    const raw = localStorage.getItem(SNAPSHOT_KEY);
+    const snap = raw ? JSON.parse(raw) : null;
+    const lastDay = snap ? new Date(snap.timestamp).toDateString() : null;
+    const today = new Date().toDateString();
+    if(lastDay !== today && hasAnyData()){
+      takeSnapshot('start of today');
+    }
+  }catch(e){ console.error('daily snapshot check failed', e); }
+}
+async function restoreSnapshot(){
+  const raw = localStorage.getItem(SNAPSHOT_KEY);
+  if(!raw) return;
+  const snap = JSON.parse(raw);
+  const when = new Date(snap.timestamp).toLocaleString('en-IN');
+  if(!await showConfirm(`Restore your data to how it was ${when} (${snap.reason})? This replaces whatever is currently saved.`)) return;
+  for(const key of DATA_KEYS){
+    if(snap.data[key]!==undefined){ localStorage.setItem(key, JSON.stringify(snap.data[key])); }
+    else{ localStorage.removeItem(key); }
+  }
+  showAlert('Restored. Reloading the app…');
+  setTimeout(()=>location.reload(), 1200);
+}
+function renderSnapshotInfo(){
+  const raw = localStorage.getItem(SNAPSHOT_KEY);
+  const infoEl = document.getElementById('snapshot-info');
+  const btnEl = document.getElementById('snapshot-restore-btn');
+  if(!infoEl || !btnEl) return;
+  if(!raw){ infoEl.textContent = 'No snapshot yet.'; btnEl.style.display='none'; return; }
+  const snap = JSON.parse(raw);
+  const when = new Date(snap.timestamp).toLocaleString('en-IN');
+  infoEl.textContent = `Last snapshot: ${when} (${snap.reason})`;
+  btnEl.style.display = 'block';
+}
+
+function renderExportReminder(){
+  const bannerEl = document.getElementById('export-reminder-banner');
+  if(!bannerEl) return;
+  if(!hasAnyData()){ bannerEl.innerHTML=''; return; }
+  const lastExportRaw = localStorage.getItem(LAST_EXPORT_KEY);
+  if(!lastExportRaw){
+    bannerEl.innerHTML = `<div class="export-banner"><div class="title">💾 You haven't backed up yet</div>Tap Export below to save a copy off this device — it's your only real protection if this phone is lost, reset, or the browser data gets cleared.</div>`;
+    return;
+  }
+  const daysSince = Math.floor((Date.now() - Number(lastExportRaw)) / (1000*60*60*24));
+  if(daysSince >= EXPORT_REMINDER_DAYS){
+    bannerEl.innerHTML = `<div class="export-banner"><div class="title">💾 ${daysSince} days since your last backup</div>Worth exporting again, especially if you've logged much since then.</div>`;
+  } else {
+    bannerEl.innerHTML = '';
+  }
+}
+
 async function init(){
   sessions = await loadArr('fleet_sessions');
   fuelEntries = await loadArr('fleet_fuel');
@@ -1326,10 +1532,12 @@ async function init(){
 
   initFuelForm();
   initPersonalTripForm();
+  initShareBackupButton();
   renderWork();
   renderFuelHistory();
   renderFixedExpenses();
   renderLoan();
+  maybeTakeDailySnapshot();
   renderDashboard();
 
   setInterval(()=>{ if(document.getElementById('tab-work').classList.contains('active')) updateElapsedDisplay(); }, 15000);
