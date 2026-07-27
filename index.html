@@ -451,11 +451,12 @@
     <div id="export-reminder-banner"></div>
     <div class="card">
       <h2>Export / Import Data</h2>
-      <button class="btn btn-primary" id="share-backup-btn" onclick="shareBackup()" style="display:none;">Share Backup (Drive, Gmail, etc.)</button>
-      <button class="btn btn-ghost" onclick="exportData()">Export All Data (.json)</button>
+      <button class="btn btn-primary" onclick="exportData()">Save Backup File (.json)</button>
+      <div class="helptext" id="export-location-note">Saves to your phone's regular <strong>Downloads</strong> folder — open the Files app → Downloads to find <span id="export-filename-preview"></span>, then move it to Drive/Dropbox/email yourself from there.</div>
+      <button class="btn btn-ghost" id="share-backup-btn" onclick="shareBackup()" style="display:none; margin-top:14px;">Try Direct Share Instead</button>
       <button class="btn btn-ghost" onclick="document.getElementById('import-file-input').click()">Import Data (.json)</button>
       <input type="file" id="import-file-input" accept="application/json" style="display:none;" onchange="importData(event)">
-      <div class="helptext">"Share Backup" opens your phone's normal share sheet — pick Google Drive, Gmail, WhatsApp, or anywhere else to get a copy off this device in one tap. "Export" just downloads the file if you'd rather move it manually.</div>
+      <div class="helptext">"Try Direct Share Instead" attempts to open your phone's native share sheet directly to Drive/Gmail/WhatsApp — but this doesn't work reliably on every phone or browser (Chrome's file-sharing support varies), so it's offered as an extra option, not the main path. If it fails, it automatically falls back to the regular Save above.</div>
     </div>
     <div class="card">
       <h2>Same-Day Snapshot</h2>
@@ -1385,7 +1386,7 @@ function markExported(){
   try{ localStorage.setItem(LAST_EXPORT_KEY, String(Date.now())); }catch(e){}
   renderExportReminder();
 }
-function exportData(){
+function exportData(silent){
   const file = buildBackupFile();
   const url = URL.createObjectURL(file);
   const a = document.createElement('a');
@@ -1396,6 +1397,10 @@ function exportData(){
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   markExported();
+  if(!silent){
+    showAlert(`Saved as "${file.name}" in your phone's Downloads folder. Open the Files app → Downloads to find it and move it to Drive/Dropbox/email if you'd like.`);
+  }
+  return file.name;
 }
 async function shareBackup(){
   const file = buildBackupFile();
@@ -1409,12 +1414,14 @@ async function shareBackup(){
   }catch(e){
     if(e && e.name === 'AbortError') return; // user cancelled the share sheet — nothing to do
     console.error('share failed', e);
-    showAlert('Sharing didn\'t work on this device (' + (e && e.message ? e.message : 'unknown reason') + ') — downloading the file instead. Move it to Drive/Dropbox manually from your Downloads folder.');
-    exportData();
+    const filename = exportData(true); // silent=true, we show one combined message below instead
+    showAlert(`Direct sharing didn't work on this device (${e && e.message ? e.message : 'unknown reason'}) — saved "${filename}" to your Downloads folder instead. Open the Files app → Downloads to find it.`);
   }
 }
 function initShareBackupButton(){
   const btn = document.getElementById('share-backup-btn');
+  const previewEl = document.getElementById('export-filename-preview');
+  if(previewEl) previewEl.textContent = `"kanishka-fleet-backup-${todayStr()}.json"`;
   if(!btn) return;
   try{
     const testFile = new File(['test'], 'test.json', {type:'application/json'});
