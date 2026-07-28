@@ -10,6 +10,8 @@
 <title>Kanishka Fleet — Daily Log</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
 
 <style>
   :root{
@@ -448,6 +450,13 @@
     </div>
 
     <div class="divider-label">Backup & Safety Net</div>
+    <div class="card">
+      <h2>Cloud Backup</h2>
+      <div class="helptext" id="cloud-backup-status">Checking last cloud backup…</div>
+      <button class="btn btn-primary" onclick="backupToCloud()">Backup Now</button>
+      <button class="btn btn-ghost" onclick="restoreFromCloud()">Restore Now</button>
+      <div class="helptext">Backs up to your own Firebase project — no sign-in needed. Overwrites the previous cloud backup each time (only the latest copy is kept). Restoring replaces whatever's on this device, so it also takes a local safety snapshot first, same as Import.</div>
+    </div>
     <div id="export-reminder-banner"></div>
     <div class="card">
       <h2>Export / Import Data</h2>
@@ -1365,6 +1374,80 @@ const SNAPSHOT_KEY = 'fleet_snapshot';
 const LAST_EXPORT_KEY = 'fleet_last_export_at';
 const EXPORT_REMINDER_DAYS = 14;
 
+// ---------- Cloud Backup (existing Firebase project, explicit on-demand only —
+// no automatic/background sync, same safe pattern as Export/Import) ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyAJEqQ4K9953VokBwW_ppym39T3zS1cm6E",
+  authDomain: "kanishka-enterprises.firebaseapp.com",
+  projectId: "kanishka-enterprises",
+  storageBucket: "kanishka-enterprises.firebasestorage.app",
+  messagingSenderId: "1096703773107",
+  appId: "1:1096703773107:web:cc3cd91cc42aa8e88aa3c6"
+};
+let cloudDb = null;
+try{
+  firebase.initializeApp(firebaseConfig);
+  cloudDb = firebase.firestore();
+}catch(e){ console.error('Firebase init failed', e); }
+const CLOUD_DOC = () => cloudDb.collection('kanishka').doc('cloud_backup');
+
+async function backupToCloud(){
+  if(!cloudDb){ showAlert('Cloud backup isn\'t available right now (Firebase failed to load) — check your internet connection.'); return; }
+  if(!hasAnyData()){ showAlert('Nothing to back up yet.'); return; }
+  const statusEl = document.getElementById('cloud-backup-status');
+  if(statusEl) statusEl.textContent = 'Backing up…';
+  try{
+    const payload = buildBackupPayload();
+    payload.backedUpAt = Date.now();
+    await CLOUD_DOC().set(payload);
+    markExported();
+    renderCloudBackupStatus();
+    showAlert('Backed up to the cloud successfully.');
+  }catch(e){
+    console.error('cloud backup failed', e);
+    if(statusEl) statusEl.textContent = 'Last cloud backup: unknown';
+    showAlert('Cloud backup failed (' + (e && e.message ? e.message : 'unknown error') + '). Your data on this device is unaffected — try again, or use Save Backup File below instead.');
+  }
+}
+
+async function restoreFromCloud(){
+  if(!cloudDb){ showAlert('Cloud backup isn\'t available right now (Firebase failed to load) — check your internet connection.'); return; }
+  let snap;
+  try{
+    snap = await CLOUD_DOC().get();
+  }catch(e){
+    console.error('cloud restore fetch failed', e);
+    showAlert('Could not reach the cloud backup (' + (e && e.message ? e.message : 'unknown error') + '). Check your internet connection and try again.');
+    return;
+  }
+  if(!snap.exists){ showAlert('No cloud backup found yet — use "Backup Now" first.'); return; }
+  const payload = snap.data();
+  const when = payload.backedUpAt ? new Date(payload.backedUpAt).toLocaleString('en-IN') : 'an unknown time';
+  if(!await showConfirm(`Restore your data from the cloud backup made ${when}? This replaces whatever is currently on this device.`)) return;
+  if(hasAnyData()) takeSnapshot('right before this cloud restore'); // local safety net, same as Import
+  for(const key of DATA_KEYS){
+    if(payload.data && payload.data[key]!==undefined){ localStorage.setItem(key, JSON.stringify(payload.data[key])); }
+  }
+  showAlert('Restored from cloud. Reloading the app…');
+  setTimeout(()=>location.reload(), 1200);
+}
+
+async function renderCloudBackupStatus(){
+  const statusEl = document.getElementById('cloud-backup-status');
+  if(!statusEl) return;
+  if(!cloudDb){ statusEl.textContent = 'Cloud backup unavailable (offline or failed to load).'; return; }
+  try{
+    const snap = await CLOUD_DOC().get();
+    if(!snap.exists){ statusEl.textContent = 'No cloud backup yet.'; return; }
+    const payload = snap.data();
+    const when = payload.backedUpAt ? new Date(payload.backedUpAt).toLocaleString('en-IN') : 'unknown time';
+    statusEl.textContent = `Last cloud backup: ${when}`;
+  }catch(e){
+    statusEl.textContent = 'Could not check cloud backup status (check your connection).';
+  }
+}
+
+
 function hasAnyData(){
   return DATA_KEYS.some(key=>{
     const raw = localStorage.getItem(key);
@@ -1558,6 +1641,7 @@ async function init(){
   renderLoan();
   maybeTakeDailySnapshot();
   renderDashboard();
+  renderCloudBackupStatus();
 
   setInterval(()=>{ if(document.getElementById('tab-work').classList.contains('active')) updateElapsedDisplay(); }, 15000);
 }
